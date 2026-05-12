@@ -27,8 +27,21 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 10
     AI_STREET_MODEL_PATH: str = "../best_floor.pt"
+    # Inference recall is tuned with a low YOLO confidence; the counter then
+    # discards anything under MIN_FLOOR_CONFIDENCE and clusters the survivors
+    # by vertical position. IOU=0.45 matches Ultralytics' default — the older
+    # 0.3 was eating real storeys whose boxes happened to overlap slightly.
     AI_STREET_MODEL_CONFIDENCE: float = 0.15
-    AI_STREET_MODEL_IOU: float = 0.3
+    AI_STREET_MODEL_IOU: float = 0.45
+    AI_STREET_MODEL_MIN_FLOOR_CONFIDENCE: float = 0.25
+    AI_STREET_MODEL_MIN_WIDTH_RATIO: float = 0.4
+    AI_STREET_MODEL_FLOOR_GAP_RATIO: float = 0.6
+    # 960 gives the model ~50% more pixels per storey than the YOLO default of
+    # 640 (matters when citizens shoot tall buildings from across the street).
+    AI_STREET_MODEL_IMGSZ: int = 960
+    # Test-time augmentation: slower but recovers storeys hidden by sun glare /
+    # power-line clutter. Disable in low-latency setups.
+    AI_STREET_MODEL_AUGMENT: bool = True
 
     # Aerial encroachment building segmenter — train on the Roboflow dataset
     # described in backend/data/encroachment_dataset.yaml.

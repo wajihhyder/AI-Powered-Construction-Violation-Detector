@@ -13,6 +13,7 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
+import numpy as np
 from PIL import Image
 
 from core.config import settings
@@ -72,26 +73,112 @@ def _save_annotated_result(result, image_path: str) -> str:
     return rel_path
 
 
-def _count_detected_floors(result) -> int:
+_FLOOR_LABEL_TOKENS = ("floor", "storey", "story", "level", "ground")
+
+
+def _is_floor_label(label: str) -> bool:
+    label = label.strip().lower()
+    if not label:
+        return False
+    if label in {"floor", "ground", "storey", "story", "level"}:
+        return True
+    return any(token in label for token in _FLOOR_LABEL_TOKENS)
+
+
+def _as_numpy(value):
+    if value is None:
+        return None
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    return np.asarray(value)
+
+
+def _gather_floor_boxes(result) -> np.ndarray:
+    """
+    Return the subset of YOLO boxes that are floor-class and above the
+    post-inference confidence floor. Shape: (N, 5) — [x1, y1, x2, y2, conf].
+    """
     boxes = getattr(result, "boxes", None)
     if boxes is None:
-        return 0
-    names = getattr(result, "names", {}) or {}
-    cls_values = getattr(boxes, "cls", None)
-    try:
-        total_boxes = int(len(boxes))
-    except TypeError:
-        return 0
-    if cls_values is None:
-        return total_boxes
+        return np.zeros((0, 5), dtype=float)
 
-    floor_like = {"floor", "ground", "storey", "story", "level"}
-    matched = 0
-    for raw_idx in cls_values.tolist():
-        label = str(names.get(int(raw_idx), "")).strip().lower()
-        if label in floor_like or "floor" in label or "storey" in label or "story" in label:
-            matched += 1
-    return matched or total_boxes
+    xyxy = _as_numpy(getattr(boxes, "xyxy", None))
+    if xyxy is None or xyxy.size == 0:
+        return np.zeros((0, 5), dtype=float)
+
+    conf = _as_numpy(getattr(boxes, "conf", None))
+    if conf is None:
+        conf = np.ones(len(xyxy), dtype=float)
+
+    cls = _as_numpy(getattr(boxes, "cls", None))
+    names = getattr(result, "names", {}) or {}
+
+    if cls is None:
+        # Single-class model: treat every box as a floor candidate.
+        keep_mask = np.ones(len(xyxy), dtype=bool)
+    else:
+        keep_mask = np.array(
+            [_is_floor_label(str(names.get(int(c), ""))) for c in cls],
+            dtype=bool,
+        )
+
+    keep_mask &= conf >= settings.AI_STREET_MODEL_MIN_FLOOR_CONFIDENCE
+    if not keep_mask.any():
+        return np.zeros((0, 5), dtype=float)
+
+    selected = np.column_stack([xyxy[keep_mask], conf[keep_mask]]).astype(float)
+    return selected
+
+
+def _drop_narrow_outliers(floor_boxes: np.ndarray) -> np.ndarray:
+    """Discard boxes much narrower than the median (windows / AC units / billboard text)."""
+    if floor_boxes.shape[0] == 0:
+        return floor_boxes
+    widths = floor_boxes[:, 2] - floor_boxes[:, 0]
+    if widths.size == 0:
+        return floor_boxes
+    median_w = float(np.median(widths))
+    if median_w <= 0:
+        return floor_boxes
+    keep = widths >= median_w * settings.AI_STREET_MODEL_MIN_WIDTH_RATIO
+    if not keep.any():
+        return floor_boxes
+    return floor_boxes[keep]
+
+
+def _cluster_floor_levels(floor_boxes: np.ndarray) -> int:
+    """
+    Group boxes by their vertical center; storeys whose centers fall within
+    `gap_ratio × median_box_height` of each other count as the same floor.
+    """
+    if floor_boxes.shape[0] == 0:
+        return 0
+    y_centers = (floor_boxes[:, 1] + floor_boxes[:, 3]) / 2.0
+    heights = floor_boxes[:, 3] - floor_boxes[:, 1]
+    median_h = float(np.median(heights)) if heights.size else 1.0
+    if median_h <= 0:
+        return int(floor_boxes.shape[0])
+
+    gap_threshold = max(median_h * settings.AI_STREET_MODEL_FLOOR_GAP_RATIO, 1.0)
+    sorted_y = np.sort(y_centers)
+    cluster_count = 1
+    last_y = float(sorted_y[0])
+    for y in sorted_y[1:]:
+        y_val = float(y)
+        if y_val - last_y > gap_threshold:
+            cluster_count += 1
+        last_y = y_val
+    return cluster_count
+
+
+def _count_detected_floors(result) -> int:
+    floor_boxes = _gather_floor_boxes(result)
+    if floor_boxes.shape[0] == 0:
+        return 0
+    floor_boxes = _drop_narrow_outliers(floor_boxes)
+    if floor_boxes.shape[0] == 0:
+        return 0
+    return _cluster_floor_levels(floor_boxes)
 
 
 def _run_street_model(image_path: str, district: str) -> dict:
@@ -100,6 +187,8 @@ def _run_street_model(image_path: str, district: str) -> dict:
         source=image_path,
         conf=settings.AI_STREET_MODEL_CONFIDENCE,
         iou=settings.AI_STREET_MODEL_IOU,
+        imgsz=settings.AI_STREET_MODEL_IMGSZ,
+        augment=settings.AI_STREET_MODEL_AUGMENT,
         verbose=False,
         device=_normalize_device(),
     )
