@@ -117,6 +117,7 @@ npm run preview
 | `MAX_FILE_SIZE_MB`        | Max upload size                                  |
 | `AI_STREET_MODEL_PATH`    | Path to the YOLO `.pt` model used for street-view floor detection |
 | `AI_STREET_MODEL_CONFIDENCE` | Confidence threshold passed to YOLO prediction |
+| `AI_STREET_MODEL_IOU`    | IOU threshold passed to YOLO prediction         |
 | `AI_DEVICE`               | Inference device for YOLO (`cpu`, `cuda`, or `auto`) |
 | `FRONTEND_URL`            | Allowed CORS origin (e.g. `http://localhost:5173` in local dev) |
 | `FRONTEND_DIST`           | Override path to Vite `dist` (optional; default `../frontend/dist`, or `dist` inside a PyInstaller bundle) |

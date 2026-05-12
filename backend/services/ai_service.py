@@ -98,6 +98,7 @@ def _run_street_model(image_path: str, district: str) -> dict:
     results = model.predict(
         source=image_path,
         conf=settings.AI_STREET_MODEL_CONFIDENCE,
+        iou=settings.AI_STREET_MODEL_IOU,
         verbose=False,
         device=_normalize_device(),
     )

@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 10
     AI_STREET_MODEL_PATH: str = "../best_floor.pt"
-    AI_STREET_MODEL_CONFIDENCE: float = 0.25
+    AI_STREET_MODEL_CONFIDENCE: float = 0.15
+    AI_STREET_MODEL_IOU: float = 0.3
     AI_DEVICE: str = "cpu"
 
     FRONTEND_URL: str = "http://localhost:5173"
