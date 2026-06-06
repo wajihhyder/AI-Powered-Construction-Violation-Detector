@@ -168,6 +168,7 @@ flowchart TB
 ```
 
 > 🎨 A styled version of this diagram can be added at `docs/architecture.png` and embedded here in place of (or alongside) the Mermaid diagram above.
+![Architecture Diagram](/docs/architecture.jpg)
 
 ---
 
