@@ -19,6 +19,16 @@ Citizen photo ─▶ FastAPI ─▶ floor model (best_floor.pt) ─▶ count flo
                                │
                   violation? ─▶ report shows up on the authority's dashboard
 ```
+![Architecture](AppDemo/architecture.jpg)
+![Home](AppDemo/Home.jpeg)
+![Home](AppDemo/Start.jpeg)
+![NoGPS](AppDemo/NoGPS.jpeg)
+![Violation](AppDemo/Violation.jpeg)
+![NoViolation](AppDemo/NoViolation.jpeg)
+![Tracking](AppDemo/tracking.jpeg)
+![Authority1](AppDemo/Authority1.jpeg)
+![Authority2](AppDemo/Authority2.jpeg)
+![ReportMap](AppDemo/ReportMap.jpeg)
 
 ## My part: the floor-detection model
 
